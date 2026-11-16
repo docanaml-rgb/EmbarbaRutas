@@ -1,0 +1,293 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function supervisionPath(supervisionId) {
+      return /databases/$(database)/documents/supervisiones/$(supervisionId);
+    }
+
+    function checklistPath(supervisionId) {
+      return /databases/$(database)/documents/supervisiones/$(supervisionId)/checklist/resultado;
+    }
+
+    function movilidadPath(supervisionId) {
+      return /databases/$(database)/documents/supervisiones/$(supervisionId)/movilidad/registro;
+    }
+
+    function ownsSupervisionData(data) {
+      return signedIn()
+        && data.supervisorId == request.auth.uid;
+    }
+
+    function ownsSupervision(supervisionId) {
+      return signedIn()
+        && get(supervisionPath(supervisionId)).data.supervisorId
+          == request.auth.uid;
+    }
+
+    function validChecklistAnswer(value) {
+      return value is string
+        && value in ['Cumple', 'No cumple'];
+    }
+
+    function validIncidentObservation(answer, observations, field) {
+      return (
+          answer == 'No cumple'
+          && field in observations
+          && observations[field] is string
+          && observations[field].size() > 0
+        )
+        || (
+          answer == 'Cumple'
+          && !(field in observations)
+        );
+    }
+
+    function validChecklist(data) {
+      return data.keys().hasAll([
+          'versionChecklist',
+          'limpiezaConservacionCabina',
+          'iluminacionCabina',
+          'botonesPanelControl',
+          'aperturaCierrePuertas',
+          'deteccionObstaculosPuertas',
+          'nivelacionPisos',
+          'ruidosVibraciones',
+          'indicadoresPisoDireccion',
+          'botonesLlamadaPisos',
+          'alarmaComunicacionEmergencia',
+          'senalizacionSeguridad',
+          'accesosLibresObstaculos',
+          'observacionesIncidencias',
+          'observaciones',
+          'fechaRegistro'
+        ])
+        && data.keys().hasOnly([
+          'versionChecklist',
+          'limpiezaConservacionCabina',
+          'iluminacionCabina',
+          'botonesPanelControl',
+          'aperturaCierrePuertas',
+          'deteccionObstaculosPuertas',
+          'nivelacionPisos',
+          'ruidosVibraciones',
+          'indicadoresPisoDireccion',
+          'botonesLlamadaPisos',
+          'alarmaComunicacionEmergencia',
+          'senalizacionSeguridad',
+          'accesosLibresObstaculos',
+          'observacionesIncidencias',
+          'observaciones',
+          'fechaRegistro'
+        ])
+        && data.versionChecklist is int
+        && data.versionChecklist == 2
+        && validChecklistAnswer(data.limpiezaConservacionCabina)
+        && validChecklistAnswer(data.iluminacionCabina)
+        && validChecklistAnswer(data.botonesPanelControl)
+        && validChecklistAnswer(data.aperturaCierrePuertas)
+        && validChecklistAnswer(data.deteccionObstaculosPuertas)
+        && validChecklistAnswer(data.nivelacionPisos)
+        && validChecklistAnswer(data.ruidosVibraciones)
+        && validChecklistAnswer(data.indicadoresPisoDireccion)
+        && validChecklistAnswer(data.botonesLlamadaPisos)
+        && validChecklistAnswer(data.alarmaComunicacionEmergencia)
+        && validChecklistAnswer(data.senalizacionSeguridad)
+        && validChecklistAnswer(data.accesosLibresObstaculos)
+        && data.observacionesIncidencias is map
+        && data.observacionesIncidencias.keys().hasOnly([
+          'limpiezaConservacionCabina',
+          'iluminacionCabina',
+          'botonesPanelControl',
+          'aperturaCierrePuertas',
+          'deteccionObstaculosPuertas',
+          'nivelacionPisos',
+          'ruidosVibraciones',
+          'indicadoresPisoDireccion',
+          'botonesLlamadaPisos',
+          'alarmaComunicacionEmergencia',
+          'senalizacionSeguridad',
+          'accesosLibresObstaculos'
+        ])
+        && validIncidentObservation(data.limpiezaConservacionCabina, data.observacionesIncidencias, 'limpiezaConservacionCabina')
+        && validIncidentObservation(data.iluminacionCabina, data.observacionesIncidencias, 'iluminacionCabina')
+        && validIncidentObservation(data.botonesPanelControl, data.observacionesIncidencias, 'botonesPanelControl')
+        && validIncidentObservation(data.aperturaCierrePuertas, data.observacionesIncidencias, 'aperturaCierrePuertas')
+        && validIncidentObservation(data.deteccionObstaculosPuertas, data.observacionesIncidencias, 'deteccionObstaculosPuertas')
+        && validIncidentObservation(data.nivelacionPisos, data.observacionesIncidencias, 'nivelacionPisos')
+        && validIncidentObservation(data.ruidosVibraciones, data.observacionesIncidencias, 'ruidosVibraciones')
+        && validIncidentObservation(data.indicadoresPisoDireccion, data.observacionesIncidencias, 'indicadoresPisoDireccion')
+        && validIncidentObservation(data.botonesLlamadaPisos, data.observacionesIncidencias, 'botonesLlamadaPisos')
+        && validIncidentObservation(data.alarmaComunicacionEmergencia, data.observacionesIncidencias, 'alarmaComunicacionEmergencia')
+        && validIncidentObservation(data.senalizacionSeguridad, data.observacionesIncidencias, 'senalizacionSeguridad')
+        && validIncidentObservation(data.accesosLibresObstaculos, data.observacionesIncidencias, 'accesosLibresObstaculos')
+        && data.observaciones is string
+        && data.fechaRegistro is timestamp;
+    }
+
+    function validMovilidad(data) {
+      return data.keys().hasOnly([
+          'fechaRegistro',
+          'motivo',
+          'medioTransporte',
+          'especificacionMedioTransporte',
+          'gastoTotal',
+          'justificacionSinGasto'
+        ])
+        && data.fechaRegistro is timestamp
+        && data.motivo == 'Supervisión de ascensor'
+        && data.medioTransporte in [
+          'Transporte público',
+          'Taxi/aplicativo',
+          'Movilidad propia',
+          'Otro'
+        ]
+        && (data.medioTransporte == 'Otro')
+          == ('especificacionMedioTransporte' in data)
+        && (
+          !('especificacionMedioTransporte' in data)
+          || (
+            data.especificacionMedioTransporte is string
+            && data.especificacionMedioTransporte.size() > 0
+          )
+        )
+        && data.gastoTotal is number
+        && data.gastoTotal >= 0
+        // Tope defensivo para un gasto total de movilidad de ida y vuelta.
+        // Los límites inferior y superior también rechazan NaN e infinito.
+        && data.gastoTotal <= 1000000
+        && (data.gastoTotal == 0)
+          == ('justificacionSinGasto' in data)
+        && (
+          !('justificacionSinGasto' in data)
+          || (
+            data.justificacionSinGasto is string
+            && data.justificacionSinGasto.size() > 0
+          )
+        );
+    }
+
+    function validArrivalUpdate() {
+      return resource.data.estado == 'Pendiente'
+        && request.resource.data.estado == 'En supervision'
+        && request.resource.data
+          .diff(resource.data)
+          .affectedKeys()
+          .hasAll([
+            'estado',
+            'horaLlegada',
+            'latitudLlegada',
+            'longitudLlegada'
+          ])
+        && request.resource.data
+          .diff(resource.data)
+          .affectedKeys()
+          .hasOnly([
+            'estado',
+            'horaLlegada',
+            'latitudLlegada',
+            'longitudLlegada'
+          ])
+        && request.resource.data.horaLlegada is timestamp
+        && request.resource.data.horaLlegada == request.time
+        && request.resource.data.latitudLlegada is number
+        && request.resource.data.latitudLlegada >= -90
+        && request.resource.data.latitudLlegada <= 90
+        && request.resource.data.longitudLlegada is number
+        && request.resource.data.longitudLlegada >= -180
+        && request.resource.data.longitudLlegada <= 180;
+    }
+
+    function validFinalizationUpdate(supervisionId) {
+      return resource.data.estado == 'En supervision'
+        && request.resource.data.estado == 'Finalizada'
+        && request.resource.data
+          .diff(resource.data)
+          .affectedKeys()
+          .hasAll([
+            'estado',
+            'horaFinalizacion'
+          ])
+        && request.resource.data
+          .diff(resource.data)
+          .affectedKeys()
+          .hasOnly([
+            'estado',
+            'horaFinalizacion'
+          ])
+        && request.resource.data.horaFinalizacion is timestamp
+        && request.resource.data.horaFinalizacion == request.time
+        && exists(checklistPath(supervisionId))
+        && exists(movilidadPath(supervisionId))
+        && validChecklist(
+          get(checklistPath(supervisionId)).data
+        )
+        && validMovilidad(
+          get(movilidadPath(supervisionId)).data
+        );
+    }
+
+    function validSupervisionUpdate(supervisionId) {
+      return request.resource.data.estado == 'En supervision'
+        ? validArrivalUpdate()
+        : request.resource.data.estado == 'Finalizada'
+          ? validFinalizationUpdate(supervisionId)
+          : false;
+    }
+
+    match /usuarios/{uid} {
+      allow get: if signedIn()
+        && request.auth.uid == uid;
+
+      allow list, create, update, delete: if false;
+    }
+
+    match /supervisiones/{supervisionId} {
+      allow get, list: if ownsSupervisionData(resource.data);
+
+      allow create, delete: if false;
+
+      allow update: if ownsSupervisionData(resource.data)
+        && validSupervisionUpdate(supervisionId);
+
+      match /checklist/{checklistId} {
+        allow get: if checklistId == 'resultado'
+          && ownsSupervision(supervisionId);
+
+        allow create: if checklistId == 'resultado'
+          && ownsSupervision(supervisionId)
+          && get(supervisionPath(supervisionId)).data.estado
+            == 'En supervision'
+          && validChecklist(request.resource.data)
+          && request.resource.data.fechaRegistro == request.time;
+
+        allow list, update, delete: if false;
+      }
+
+      match /movilidad/{movilidadId} {
+        allow get: if movilidadId == 'registro'
+          && ownsSupervision(supervisionId);
+
+        allow create: if movilidadId == 'registro'
+          && ownsSupervision(supervisionId)
+          && get(supervisionPath(supervisionId)).data.estado
+            == 'En supervision'
+          && exists(checklistPath(supervisionId))
+          && validChecklist(get(checklistPath(supervisionId)).data)
+          && validMovilidad(request.resource.data)
+          && request.resource.data.fechaRegistro == request.time;
+
+        allow list, update, delete: if false;
+      }
+    }
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
